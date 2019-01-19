@@ -13,6 +13,16 @@ def runAbsDiff(video,old_frame):
     diff = cv2.absdiff(frame,old_frame)
     return diff
 
+def runThreshold(video,frame):
+    frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+    ret,new_frame = cv2.threshold(frame,125,255,cv2.THRESH_BINARY)
+    return new_frame
+
+def runCanny(video,frame):
+    frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(frame,100,200)
+    return edges
+
 video = cv2.VideoCapture(-1)
 
 #prev_ret,prev_frame = video.read()
@@ -22,23 +32,27 @@ while (True):
     ret,frame = video.read()
     #gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
     key = cv2.waitKey(1)
-    if key == ord('d'):
-        print('d pressed')
-        mode = 2
-    elif key == ord('g'):
-        print('g pressed')
-        mode = 1
-    elif key == ord('q'):
-        print('q pressed')
-        break
-    elif key == ord('n'):
-        print('n pressed')
+    if key == ord('n'):
         mode = 0
+    elif key == ord('g'):
+        mode = 1
+    elif key == ord('d'):
+        mode = 2
+    elif key == ord('t'):
+        mode = 3
+    elif key == ord('c'):
+        mode = 4
+    elif key == ord('q'):
+        break
 
     if mode == 1:
         image = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
     elif mode == 2:
         image = runAbsDiff(video,frame)
+    elif mode == 3:
+        image = runThreshold(video,frame) 
+    elif mode == 4:
+        image = runCanny(video,frame)
     else:
         image = frame
 
