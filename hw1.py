@@ -7,6 +7,7 @@ for p in rm_python2:
     sys.path.remove(p)
 
 import cv2
+import numpy as np
 
 def runAbsDiff(video,old_frame):
     ret,frame = video.read()
@@ -23,6 +24,47 @@ def runCanny(video,frame):
     edges = cv2.Canny(frame,100,200)
     return edges
 
+def runCornerSubPix(video,frame):
+    gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+    gray = np.float32(gray)
+    dst = cv2.cornerHarris(gray,2,3,0.04)
+    dst = cv2.dilate(dst,None)
+    ret,dst = cv2.threshold(dst,0.1*dst.max(),255,0)
+    dst = np.uint8(dst)
+
+    ret,labels,stats,centroids = cv2.connectedComponentsWithStats(dst)
+
+    criteria = (cv2.TERM_CRITERIA_EPS+cv2.TERM_CRITERIA_MAX_ITER,100,0.001)
+    corners = cv2.cornerSubPix(gray,np.float32(centroids),(5,5),(-1,-1),criteria)
+    corners = np.int0(corners)
+    #frame = frame - frame
+    #frame[corners[:,1],corners[:,0]] = [0,0,255]
+    #frame = cv2.drawChessboardCorners(frame,(5,5),corners,ret)
+    for x,y in corners:
+        cv2.circle(frame,(x,y),2,(0,0,255))
+    
+    return frame
+
+def runHoughLines(video,frame):
+    edges = runCanny(video,frame)
+    lines = cv2.HoughLines(edges,1,np.pi/180,50)
+    try:
+        lines[0] == None
+    except TypeError:
+        return frame
+    for r,theta in lines[0]:
+        c = np.cos(theta)
+        s = np.sin(theta)
+        x0 = r*c
+        y0 = r*s
+        x1 = int(x0+1000*-s)
+        y1 = int(y0+1000*c)
+        x2 = int(x0-1000*-s)
+        y2 = int(y0-1000*c)
+        cv2.line(frame,(x1,y1),(x2,y2),(0,0,255),2)
+        return frame
+
+#cv2.namedWindow('Haskell',cv2.WINDOW_NORMAL)
 video = cv2.VideoCapture(-1)
 
 #prev_ret,prev_frame = video.read()
@@ -42,6 +84,10 @@ while (True):
         mode = 3
     elif key == ord('c'):
         mode = 4
+    elif key == ord('p'):
+        mode = 5
+    elif key == ord('l'):
+        mode = 6
     elif key == ord('q'):
         break
 
@@ -53,6 +99,10 @@ while (True):
         image = runThreshold(video,frame) 
     elif mode == 4:
         image = runCanny(video,frame)
+    elif mode == 5:
+        image = runCornerSubPix(video,frame)
+    elif mode == 6:
+        image = runHoughLines(video,frame)
     else:
         image = frame
 
