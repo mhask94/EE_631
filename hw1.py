@@ -21,7 +21,7 @@ def runThreshold(video,frame):
 
 def runCanny(video,frame):
     frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(frame,100,200)
+    edges = cv2.Canny(frame,50,150)
     return edges
 
 def runCornerSubPix(video,frame):
@@ -47,7 +47,7 @@ def runCornerSubPix(video,frame):
 
 def runHoughLines(video,frame):
     edges = runCanny(video,frame)
-    lines = cv2.HoughLines(edges,1,np.pi/180,50)
+    lines = cv2.HoughLines(edges,1,np.pi/180,150)
     try:
         lines[0] == None
     except TypeError:
