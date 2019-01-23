@@ -38,8 +38,6 @@ def runCornerSubPix(video,frame):
     corners = cv2.cornerSubPix(gray,np.float32(centroids),(5,5),(-1,-1),criteria)
     corners = np.int0(corners)
     #frame = frame - frame
-    #frame[corners[:,1],corners[:,0]] = [0,0,255]
-    #frame = cv2.drawChessboardCorners(frame,(5,5),corners,ret)
     for x,y in corners:
         cv2.circle(frame,(x,y),2,(0,0,255))
     
@@ -71,6 +69,11 @@ video = cv2.VideoCapture(-1)
 #prev_ret,prev_frame = video.read()
 mode = 0
 
+fourCC = cv2.VideoWriter_fourcc(*'MPEG')
+#fourCC = video.getBackendName()
+out = cv2.VideoWriter('Haskell_HW1.avi',fourCC,25.0,(640,480))
+write = False
+
 while (True):
     ret,frame = video.read()
     #gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
@@ -89,6 +92,12 @@ while (True):
         mode = 5
     elif key == ord('l'):
         mode = 6
+    elif key == ord('w'):
+        write = True
+        print('Writing')
+    elif key == ord('s'):
+        write = False
+        print('Stopped Writing')
     elif key == ord('q'):
         break
 
@@ -98,8 +107,10 @@ while (True):
         image = runAbsDiff(video,frame)
     elif mode == 3:
         image = runThreshold(video,frame) 
+        image = cv2.cvtColor(image,cv2.COLOR_GRAY2BGR)
     elif mode == 4:
         image = runCanny(video,frame)
+        image = cv2.cvtColor(image,cv2.COLOR_GRAY2BGR)
     elif mode == 5:
         image = runCornerSubPix(video,frame)
     elif mode == 6:
@@ -108,8 +119,12 @@ while (True):
         image = frame
 
     cv2.imshow('Haskell',image)
+    if write:
+#        print('writing frame')
+        out.write(image)
 
 video.release()
+out.release()
 cv2.destroyAllWindows()
 
 
