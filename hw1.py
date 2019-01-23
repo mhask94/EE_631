@@ -52,17 +52,18 @@ def runHoughLines(video,frame):
         lines[0] == None
     except TypeError:
         return frame
-    for r,theta in lines[0]:
-        c = np.cos(theta)
-        s = np.sin(theta)
-        x0 = r*c
-        y0 = r*s
-        x1 = int(x0+1000*-s)
-        y1 = int(y0+1000*c)
-        x2 = int(x0-1000*-s)
-        y2 = int(y0-1000*c)
-        cv2.line(frame,(x1,y1),(x2,y2),(0,0,255),2)
-        return frame
+    for line in lines:
+        for r,theta in line:
+            c = np.cos(theta)
+            s = np.sin(theta)
+            x0 = r*c
+            y0 = r*s
+            x1 = int(x0+1000*-s)
+            y1 = int(y0+1000*c)
+            x2 = int(x0-1000*-s)
+            y2 = int(y0-1000*c)
+            cv2.line(frame,(x1,y1),(x2,y2),(0,0,255),2)
+    return frame
 
 #cv2.namedWindow('Haskell',cv2.WINDOW_NORMAL)
 video = cv2.VideoCapture(-1)
@@ -107,8 +108,6 @@ while (True):
         image = frame
 
     cv2.imshow('Haskell',image)
-    #if cv2.waitKey(1) & 0xFF == ord('q'):
-    #    break
 
 video.release()
 cv2.destroyAllWindows()
