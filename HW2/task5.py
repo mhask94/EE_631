@@ -41,12 +41,6 @@ for filename in images:
 # run calibration
 ret,mat,dist,rvecs,tvecs = cv.calibrateCamera(obj_pts,img_pts,gray.shape[::-1],None,None)
 
-# camera spec sheet said pixel size is 4.7e-3 mm X 4.7e-3 mm
-mm_per_pix = 4.7e-3
-fSx = mat[0,0] # fist element of matrix is fSx in pixels
-focal_len = fSx * mm_per_pix
-
-print('\nFocal length: \n',focal_len,' mm')
 print('\nIntrinsic Parameter Matrix: \n',mat)
 print('\nDistortion Coefficients: \n',dist.T,'\n')
 
