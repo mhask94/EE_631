@@ -17,9 +17,9 @@ imgs = [close,far,turned]
 
 # undistort each image and display the abs difference
 for img in imgs:
-    h, w = img.shape[:2]
-    mat2, roi = cv.getOptimalNewCameraMatrix(mat,dist,(w,h),1,(w,h))
-    img2 = cv.undistort(img, mat, dist, None, mat2)
+#    h, w = img.shape[:2]
+#    mat2, roi = cv.getOptimalNewCameraMatrix(mat,dist,(w,h),1,(w,h))
+    img2 = cv.undistort(img, mat, dist, None, mat)
 
     diff = cv.absdiff(img,img2)
 

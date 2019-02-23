@@ -30,7 +30,7 @@ for filename in images:
     if ret == True:
         obj_pts.append(obj_pt)
 
-        corners2 = cv.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)
+        corners2 = cv.cornerSubPix(gray,corners,(5,5),(-1,-1),criteria)
         img_pts.append(corners2)
 
 # Don't need to display the images for this task
