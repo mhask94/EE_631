@@ -72,5 +72,15 @@ print('T: \n',T)
 print('E: \n',E)
 print('F: \n',F)
 
+#store the files
+store_location = 'params/stereo.yml'
+fs = cv.FileStorage(store_location,cv.FILE_STORAGE_WRITE)
+fs.write("R",R)
+fs.write("T",T)
+fs.write("E",E)
+fs.write("F",F)
+fs.release()
+print('Wrote camera params to ',store_location,'\n')
+
 print('Program has ended')
 
