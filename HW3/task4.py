@@ -45,6 +45,9 @@ map_r1, map_r2 = cv.initUndistortRectifyMap(mat_l,dist_l,R1,P1,shape,5)
 rect_img_l = cv.remap(img_l,map_l1,map_l2,cv.INTER_LINEAR)
 rect_img_r = cv.remap(img_r,map_r1,map_r2,cv.INTER_LINEAR)
 
+diff_l = cv.absdiff(img_l,rect_img_l)
+diff_r = cv.absdiff(img_r,rect_img_r)
+
 def drawLines(img,color):
     x0 = -10
     x1 = 800
@@ -58,6 +61,10 @@ rect_img_l = drawLines(rect_img_l,(0,255,0))
 
 cv.imshow(left_window,rect_img_l)
 cv.imshow(right_window,rect_img_r)
+cv.waitKey(0)
+
+cv.imshow(left_window,diff_l)
+cv.imshow(right_window,diff_r)
 cv.waitKey(0)
 
 cv.destroyAllWindows()
