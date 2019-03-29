@@ -7,6 +7,12 @@
 
 #define SHOW
 
+double mag(double in)
+{
+    in *= (in < 0) ? -1 : 1;
+    return in;
+}
+
 cv::Point2d getPoint(cv::Point2d pt, int size, const cv::Mat& img)
 {
     double x,y;
@@ -82,7 +88,7 @@ void getF(std::string glob_path, std::vector<cv::Point2d>& original_pts,
 
     std::vector<cv::Point2d> prev_corners, original_corners, new_corners;
     int max_corners{500};
-    double quality{0.01}, min_distance{23.0};
+    double quality{0.01}, min_distance{25.0};
     cv::goodFeaturesToTrack(prev_img_g, prev_corners, max_corners, quality, min_distance);
     original_corners = prev_corners;
 
@@ -95,7 +101,26 @@ void getF(std::string glob_path, std::vector<cv::Point2d>& original_pts,
 
         featureMatch(prev_corners, prev_img_g, img_g, new_corners);
 
+        cv::FileStorage in{"../Camera_Parameters.yaml", cv::FileStorage::READ};
+        cv::Mat M, dist;
+        in["Cam_Mat"] >> M;
+        in["Distortion"] >> dist;
+        in.release();
+        double fx{M.at<double>(0,0)};
+        double fy{M.at<double>(1,1)};
+        double Ox{M.at<double>(0,2)};
+        double Oy{M.at<double>(1,2)};
+
         cv::Mat status;
+        cv::undistortPoints(prev_corners, prev_corners, M, dist);
+        cv::undistortPoints(new_corners, new_corners, M, dist);
+        for (int i{0}; i < prev_corners.size(); i++)
+        {
+            prev_corners[i].x = prev_corners[i].x*fx + Ox;
+            prev_corners[i].y = prev_corners[i].y*fy + Oy;
+            new_corners[i].x = new_corners[i].x*fx + Ox;
+            new_corners[i].y = new_corners[i].y*fy + Oy;
+        }
         F = cv::findFundamentalMat(prev_corners,new_corners,cv::FM_RANSAC,3,0.99,status);
 
         prev_corners.clear();
@@ -123,6 +148,8 @@ void getF(std::string glob_path, std::vector<cv::Point2d>& original_pts,
     }
     original_pts = original_corners;
     end_pts = prev_corners;
+    cv::Mat status;
+    F = cv::findFundamentalMat(original_pts,end_pts,cv::FM_RANSAC,3,0.99,status);
     last_img = cv::imread(filenames[5]);
 }
 
@@ -133,39 +160,40 @@ void rectify(std::string dir)
     cv::Mat F, first_img, last_img;
     getF(path, original_pts, final_pts, F, first_img, last_img);
 
-    cv::Mat H1, H2;
-    cv::stereoRectifyUncalibrated(original_pts, final_pts, F, first_img.size(), H1, H2);
-    std::cout << "H1: " << H1 << std::endl;
-
-    cv::FileStorage in{"../guess_params.yaml", cv::FileStorage::READ};
+    cv::FileStorage in{"../Camera_Parameters.yaml", cv::FileStorage::READ};
     cv::Mat M, dist;
     in["Cam_Mat"] >> M;
     in["Distortion"] >> dist;
     in.release();
 
-    cv::Mat R1, R2;
-    R1 = M.inv()*H1*M;
-    R2 = M.inv()*H2*M;
-    std::cout << "R1: " << R1 << std::endl;
+    cv::Mat E, R1, R2, t;
+    E = M.t() * F * M;
+    cv::decomposeEssentialMat(E,R1, R2, t);
 
-    cv::Size img_size{640,480};
-    cv::Mat map1_1, map1_2, map2_1, map2_2, first_rect, last_rect;
-    cv::initUndistortRectifyMap(M, dist, R1, M, img_size, 5, map1_1, map1_2);
-    remap(first_img, first_rect, map1_1, map1_2, cv::INTER_LINEAR);
-    cv::initUndistortRectifyMap(M, dist, R2, M, img_size, 5, map2_1, map2_2);
-    remap(last_img, last_rect, map2_1, map2_2, cv::INTER_LINEAR);
+    double e1{3 - mag(R1.at<double>(0,0)) - mag(R1.at<double>(1,1)) - mag(R1.at<double>(2,2))};
+    double e2{3 - mag(R2.at<double>(0,0)) - mag(R2.at<double>(1,1)) - mag(R2.at<double>(2,2))};
 
-    for (int i{1}; i < 21; i++)
+    std::cout << "Current image set: " << dir << std::endl;
+//    std::cout << "R1" << R1 << std::endl;
+//    std::cout << "R2" << R2 << std::endl;
+    if (dir.substr(0,8) == "Parallel")
     {
-        cv::Point left_pt{0, 25*i};
-        cv::Point right_pt{800, 25*i};
-        cv::line(first_rect,left_pt,right_pt,cv::Scalar(0,0,255),1);
-        cv::line(last_rect,left_pt,right_pt,cv::Scalar(0,0,255),1);
+        if (e1 < e2)
+            std::cout << "R" << R1 << std::endl;
+        else
+            std::cout << "R" << R2 << std::endl;
     }
-
-    cv::imshow("Rectified 1st Frame",first_rect);
-    cv::imshow("Rectified Last Frame", last_rect);
-    cv::waitKey(0);
+    else
+    {
+        if (R1.at<double>(1,1) > 0)
+            std::cout << "R" << R1 << std::endl;
+        else
+            std::cout << "R" << R2 << std::endl;
+    }
+    if (t.at<double>(0) > 0)
+        std::cout << "t" << t << std::endl;
+    else
+        std::cout << "t" << -t << std::endl;
 }
 
 int main()
