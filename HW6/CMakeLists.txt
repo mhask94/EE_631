@@ -13,6 +13,3 @@ target_link_libraries(task2 ${OpenCV_LIBS})
 
 add_executable(task3 task3.cpp)
 target_link_libraries(task3 ${OpenCV_LIBS})
-
-add_executable(seth seth.cpp)
-target_link_libraries(seth ${OpenCV_LIBS})

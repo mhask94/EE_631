@@ -159,6 +159,8 @@ void rectify(std::string dir)
     std::vector<cv::Point2d> original_pts, final_pts;
     cv::Mat F, first_img, last_img;
     getF(path, original_pts, final_pts, F, first_img, last_img);
+    std::cout << "Current image set: " << dir << std::endl;
+    std::cout << "F: \n" << F << std::endl;
 
     cv::FileStorage in{"../Camera_Parameters.yaml", cv::FileStorage::READ};
     cv::Mat M, dist;
@@ -169,31 +171,31 @@ void rectify(std::string dir)
     cv::Mat E, R1, R2, t;
     E = M.t() * F * M;
     cv::decomposeEssentialMat(E,R1, R2, t);
+    std::cout << "E: \n" << E << std::endl;
 
     double e1{3 - mag(R1.at<double>(0,0)) - mag(R1.at<double>(1,1)) - mag(R1.at<double>(2,2))};
     double e2{3 - mag(R2.at<double>(0,0)) - mag(R2.at<double>(1,1)) - mag(R2.at<double>(2,2))};
 
-    std::cout << "Current image set: " << dir << std::endl;
 //    std::cout << "R1" << R1 << std::endl;
 //    std::cout << "R2" << R2 << std::endl;
     if (dir.substr(0,8) == "Parallel")
     {
         if (e1 < e2)
-            std::cout << "R" << R1 << std::endl;
+            std::cout << "R: \n" << R1 << std::endl;
         else
-            std::cout << "R" << R2 << std::endl;
+            std::cout << "R: \n" << R2 << std::endl;
     }
     else
     {
         if (R1.at<double>(1,1) > 0)
-            std::cout << "R" << R1 << std::endl;
+            std::cout << "R: \n" << R1 << std::endl;
         else
-            std::cout << "R" << R2 << std::endl;
+            std::cout << "R: \n" << R2 << std::endl;
     }
     if (t.at<double>(0) > 0)
-        std::cout << "t" << t << std::endl;
+        std::cout << "t: \n" << t << std::endl;
     else
-        std::cout << "t" << -t << std::endl;
+        std::cout << "t: \n" << -t << std::endl;
 }
 
 int main()
