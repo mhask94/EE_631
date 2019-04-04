@@ -234,8 +234,7 @@ void rectify(std::string dir)
 
     cv::Size img_size{640,480};
     cv::Mat P1, P2, Q;
-    double scale{2.45};
-    cv::stereoRectify(M,dist,M,dist,img_size, R, scale*t, R1, R2, P1, P2, Q);
+    cv::stereoRectify(M,dist,M,dist,img_size, R, t, R1, R2, P1, P2, Q);
 
     std::vector<cv::Point3d> last_points, first_points;
     for (int i{0}; i < 4; i++)
