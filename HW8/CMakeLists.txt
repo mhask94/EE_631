@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.4)
-project(visualOdometry)
+project(VisualOdometry)
 
 find_package(OpenCV REQUIRED)
 
@@ -10,4 +10,3 @@ target_link_libraries(task1 ${OpenCV_LIBS})
 
 add_executable(task2 task2.cpp)
 target_link_libraries(task2 ${OpenCV_LIBS})
-
