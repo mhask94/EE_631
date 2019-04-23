@@ -1,209 +1,153 @@
 #include <opencv2/opencv.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <string>
-#include <iostream>
 #include <glob.h>
-#include <vector>
+#include <fstream>
 
-#define SHOW
+//#define SHOW
 
-double mag(double in)
+void getImageFilenamesInVector(std::string dir, std::vector<std::string>& filenames)
 {
-    in *= (in < 0) ? -1 : 1;
-    return in;
-}
-
-cv::Point2d getPoint(cv::Point2d pt, int size, const cv::Mat& img)
-{
-    double x,y;
-    if(pt.x > img.cols - size/2.0)
-        x = img.cols - size;
-    else if(pt.x < size/2.0)
-        x = 0;
-    else
-        x = pt.x- size/2.0;
-    if(pt.y > img.rows - size/2.0)
-        y = img.rows - size;
-    else if(pt.y < size/2.0)
-        y = 0;
-    else
-        y = pt.y - size/2.0;
-
-  return cv::Point2d(x, y);
-}
-
-void featureMatch(const std::vector<cv::Point2d>& prev_corners, const cv::Mat& prev_img,
-                  const cv::Mat& img, std::vector<cv::Point2d>& new_corners)
-{
-    new_corners.clear();
-    int ts{5};
-    int ss{12*ts};
-    cv::Size template_size{ts,ts};
-    cv::Size search_size{ss,ss};
-    int method{cv::TM_SQDIFF_NORMED};
-    for (cv::Point2d pt : prev_corners)
-    {
-        cv::Point2d template_pt{getPoint(pt,ts,prev_img)};
-        cv::Rect template_roi{template_pt,template_size};
-        cv::Mat template_img{prev_img(template_roi)};
-
-        cv::Point2d search_pt{getPoint(pt,ss,prev_img)};
-        cv::Rect search_roi{search_pt,search_size};
-        cv::Mat search_img{img(search_roi)};
-
-        int result_cols{search_img.cols - template_img.cols + 1};
-        int result_rows{search_img.rows - template_img.rows + 1};
-        cv::Mat result;
-        result.create(result_rows, result_cols, CV_32FC1);
-        cv::matchTemplate(search_img, template_img, result, method);
-        cv::normalize(result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
-
-        double min_val, max_val;
-        cv::Point match_loc, min_loc, max_loc;
-        cv::minMaxLoc(result, &min_val, &max_val, &min_loc, &max_loc, cv::Mat());
-        match_loc.x = int(pt.x - result.cols/2.0 + min_loc.x);
-        match_loc.y = int(pt.y - result_rows/2.0 + min_loc.y);
-
-        new_corners.push_back(match_loc);
-    }
-}
-
-void getF(std::string glob_path, std::vector<cv::Point2d>& original_pts,
-             std::vector<cv::Point2d>& end_pts, cv::Mat& F, cv::Mat& first_img,
-          cv::Mat& last_img)
-{
-    // get all of the img filenames in a vector
+    std::string glob_path{"../"+dir+"/"+dir+"/*.png"};
     glob_t result;
     glob(glob_path.c_str(), GLOB_TILDE, NULL,&result);
-    std::vector<std::string> filenames;
     for (size_t i{0}; i < result.gl_pathc; i++)
     {
         filenames.push_back(std::string(result.gl_pathv[i]));
     }
-    // grab the first image
-    cv::Mat prev_img, prev_img_g, img, img_g;
-    prev_img = cv::imread(filenames[0]);
-    cv::cvtColor(prev_img,prev_img_g,cv::COLOR_BGR2GRAY);
-    prev_img.copyTo(first_img);
-
-    std::vector<cv::Point2d> prev_corners, original_corners, new_corners;
-    int max_corners{500};
-    double quality{0.01}, min_distance{25.0};
-    cv::goodFeaturesToTrack(prev_img_g, prev_corners, max_corners, quality, min_distance);
-    original_corners = prev_corners;
-
-    for (std::string filename : filenames)
-    {
-        img = cv::imread(filename);
-        cv::cvtColor(img, img_g, cv::COLOR_BGR2GRAY);
-        cv::Mat temp_img;
-        img.copyTo(temp_img);
-
-        featureMatch(prev_corners, prev_img_g, img_g, new_corners);
-
-        cv::FileStorage in{"../Camera_Parameters.yaml", cv::FileStorage::READ};
-        cv::Mat M, dist;
-        in["Cam_Mat"] >> M;
-        in["Distortion"] >> dist;
-        in.release();
-        double fx{M.at<double>(0,0)};
-        double fy{M.at<double>(1,1)};
-        double Ox{M.at<double>(0,2)};
-        double Oy{M.at<double>(1,2)};
-
-        cv::Mat status;
-        cv::undistortPoints(prev_corners, prev_corners, M, dist);
-        cv::undistortPoints(new_corners, new_corners, M, dist);
-        for (int i{0}; i < prev_corners.size(); i++)
-        {
-            prev_corners[i].x = prev_corners[i].x*fx + Ox;
-            prev_corners[i].y = prev_corners[i].y*fy + Oy;
-            new_corners[i].x = new_corners[i].x*fx + Ox;
-            new_corners[i].y = new_corners[i].y*fy + Oy;
-        }
-        F = cv::findFundamentalMat(prev_corners,new_corners,cv::FM_RANSAC,3,0.99,status);
-
-        prev_corners.clear();
-        std::vector<cv::Point2d> temp;
-        for (int i{0}; i < status.rows; i++)
-        {
-            if (status.at<uchar>(i,0))
-            {
-                prev_corners.push_back(new_corners[i]);
-                temp.push_back(original_corners[i]);
-            }
-        }
-        original_corners = temp;
-        img_g.copyTo(prev_img_g);
-
-        for (int i{0}; i < prev_corners.size(); i++)
-        {
-            cv::circle(temp_img, original_corners[i], 2, cv::Scalar(0,255,0), -1);
-            cv::line(temp_img, original_corners[i], prev_corners[i], cv::Scalar(0,0,255),1);
-        }
-#ifdef SHOW
-        cv::imshow("Debug",temp_img);
-        cv::waitKey(0);
-#endif
-    }
-    original_pts = original_corners;
-    end_pts = prev_corners;
-    cv::Mat status;
-    F = cv::findFundamentalMat(original_pts,end_pts,cv::FM_RANSAC,3,0.99,status);
-    last_img = cv::imread(filenames[5]);
 }
 
-void rectify(std::string dir)
+void getFeatures(const cv::Mat& gray_img, std::vector<cv::Point2f>& points)
 {
-    std::string path{"../"+dir+"/*.jpg"};
-    std::vector<cv::Point2d> original_pts, final_pts;
-    cv::Mat F, first_img, last_img;
-    getF(path, original_pts, final_pts, F, first_img, last_img);
-    std::cout << "Current image set: " << dir << std::endl;
-    std::cout << "F: \n" << F << std::endl;
+    static int max_corners{500};
+    static double quality{0.01};
+    static double min_distance{8.0};
 
-    cv::FileStorage in{"../Camera_Parameters.yaml", cv::FileStorage::READ};
-    cv::Mat M, dist;
-    in["Cam_Mat"] >> M;
-    in["Distortion"] >> dist;
-    in.release();
+    cv::goodFeaturesToTrack(gray_img, points, max_corners, quality, min_distance);
+}
 
-    cv::Mat E, R1, R2, t;
-    E = M.t() * F * M;
-    cv::decomposeEssentialMat(E,R1, R2, t);
-    std::cout << "E: \n" << E << std::endl;
+void matchFeatures(const cv::Mat& img1, const cv::Mat& img2,
+          std::vector<cv::Point2f>& points1, std::vector<cv::Point2f>& points2)
+{
+    std::vector<uchar> status;
+    std::vector<float> err;
+    cv::calcOpticalFlowPyrLK(img1,img2,points1,points2,status,err);
 
-    double e1{3 - mag(R1.at<double>(0,0)) - mag(R1.at<double>(1,1)) - mag(R1.at<double>(2,2))};
-    double e2{3 - mag(R2.at<double>(0,0)) - mag(R2.at<double>(1,1)) - mag(R2.at<double>(2,2))};
-
-//    std::cout << "R1" << R1 << std::endl;
-//    std::cout << "R2" << R2 << std::endl;
-    if (dir.substr(0,8) == "Parallel")
+    int idx{0};
+    double pix_vel, min_vel_thresh{4.0}, max_vel_thresh{50.0};
+    for (int i{0}; i < status.size(); i++)
     {
-        if (e1 < e2)
-            std::cout << "R: \n" << R1 << std::endl;
+        cv::Point2f pt;
+        pt = points2.at(i-idx);
+        if ((status.at(i) == 0) || (pt.x < 0) || (pt.y < 0))
+        {
+            points1.erase(points1.begin() + (i-idx));
+            points2.erase(points2.begin() + (i-idx));
+            idx++;
+        }
         else
-            std::cout << "R: \n" << R2 << std::endl;
+        {
+            pix_vel = sqrt(pow(points2[i-idx].x - points1[i-idx].x,2) +
+                    pow(points2[i-idx].y - points1[i-idx].y,2));
+
+            if (pix_vel < min_vel_thresh || pix_vel > max_vel_thresh)
+            {
+                points1.erase(points1.begin() + (i-idx));
+                points2.erase(points2.begin() + (i-idx));
+                idx++;
+            }
+        }
     }
-    else
+}
+
+void runVO(std::string dir, int num_frames)
+{
+    cv::Mat M;
+    cv::FileStorage fs("../"+dir+"/Camera_Parameters.yaml",cv::FileStorage::READ);
+    fs["Cam_Mat"] >> M;
+    fs.release();
+
+    std::ofstream fout;
+    fout.open("../"+dir+"/data.txt");
+
+    std::vector<std::string> filenames;
+    getImageFilenamesInVector(dir, filenames);
+
+    cv::Mat prev_img, img, prev_gray, gray;
+    std::vector<cv::Point2f> features, matches;
+
+    cv::Mat R_tot, t_tot;
+    R_tot = cv::Mat::eye(3,3,CV_64F);
+    t_tot = cv::Mat::zeros(3,1,CV_64F);
+    double scale_factor{0.8};
+    scale_factor *= (num_frames == 0) ? 1 : num_frames;
+
+    for (unsigned long i{0}; i < filenames.size(); i++)
     {
-        if (R1.at<double>(1,1) > 0)
-            std::cout << "R: \n" << R1 << std::endl;
+        prev_img = cv::imread(filenames[i]);
+        if (prev_img.empty())
+            break;
+        cv::cvtColor(prev_img, prev_gray, cv::COLOR_BGR2GRAY);
+        getFeatures(prev_gray, features);
+
+        for (int j{0}; j < num_frames; j++)
+            i++;
+
+        img = cv::imread(filenames[i+1]);
+        if (img.empty())
+            break;
+        cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+        matchFeatures(prev_gray,gray,features,matches);
+
+        cv::Mat mask, E, R, t;
+        if (matches.size() > 10)
+        {
+            E = cv::findEssentialMat(features,matches,M,cv::RANSAC,0.999,1.0,mask);
+            cv::recoverPose(E, features, matches, M, R, t, mask);
+        }
         else
-            std::cout << "R: \n" << R2 << std::endl;
+        {
+            R = cv::Mat::eye(3,3,CV_64F);
+            t = cv::Mat::zeros(3,1,CV_64F);
+            t.at<double>(2,0) = 1.0;
+        }
+
+        R_tot *= R.t();
+        t_tot += -scale_factor*R_tot*t;
+
+        fout << R_tot.at<double>(0,0) << "\t" << R_tot.at<double>(0,1) << "\t";
+        fout << R_tot.at<double>(0,2) << "\t" << t_tot.at<double>(0,0) << "\t";
+        fout << R_tot.at<double>(1,0) << "\t" << R_tot.at<double>(1,1) << "\t";
+        fout << R_tot.at<double>(1,2) << "\t" << t_tot.at<double>(1,0) << "\t";
+        fout << R_tot.at<double>(2,0) << "\t" << R_tot.at<double>(2,1) << "\t";
+        fout << R_tot.at<double>(2,2) << "\t" << t_tot.at<double>(2,0) << "\t\n";
+
+#ifdef SHOW
+        if (!E.empty())
+        {
+            std::vector<cv::Point2f> inliers1, inliers2;
+            for (unsigned i{0}; i < matches.size(); i++)
+            {
+                cv::circle(img, features[i], 2, cv::Scalar{0,255,0},3);
+                cv::circle(img, matches[i], 2, cv::Scalar{0,0,255},3);
+                cv::line(img,features[i],matches[i],cv::Scalar{0,0,255},1);
+            }
+        }
+
+        cv::imshow("Task 2",img);
+        cv::waitKey(1);
+#endif
     }
-    if (t.at<double>(0) > 0)
-        std::cout << "t: \n" << t << std::endl;
-    else
-        std::cout << "t: \n" << -t << std::endl;
+    fout.close();
+#ifdef SHOW
+    cv::destroyAllWindows();
+#endif
 }
 
 int main()
 {
-    rectify("Parallel_Cube");
-    rectify("Parallel_Real");
-    rectify("Turned_Cube");
-    rectify("Turned_Real");
+    int skip_frames{1};
+
+    std::string dir{"BYU_Hallway_Sequence"};
+    runVO(dir, skip_frames);
 
     return 0;
 }

@@ -1,8 +1,5 @@
 #include <opencv2/opencv.hpp>
-#include <string>
-//#include <iostream>
 #include <glob.h>
-#include <vector>
 #include <fstream>
 
 #define SHOW
@@ -35,7 +32,7 @@ void matchFeatures(const cv::Mat& img1, const cv::Mat& img2,
     cv::calcOpticalFlowPyrLK(img1,img2,points1,points2,status,err);
 
     int idx{0};
-    double pix_vel, pix_vel_thresh{4.0};
+    double pix_vel, min_vel_thresh{4.0}, max_vel_thresh{50.0};
     for (int i{0}; i < status.size(); i++)
     {
         cv::Point2f pt;
@@ -51,7 +48,7 @@ void matchFeatures(const cv::Mat& img1, const cv::Mat& img2,
             pix_vel = sqrt(pow(points2[i-idx].x - points1[i-idx].x,2) +
                     pow(points2[i-idx].y - points1[i-idx].y,2));
 
-            if (pix_vel < pix_vel_thresh)
+            if (pix_vel < min_vel_thresh || pix_vel > max_vel_thresh)
             {
                 points1.erase(points1.begin() + (i-idx));
                 points2.erase(points2.begin() + (i-idx));
@@ -81,6 +78,7 @@ void runVO(std::string dir, int num_frames)
     R_tot = cv::Mat::eye(3,3,CV_64F);
     t_tot = cv::Mat::zeros(3,1,CV_64F);
     double scale_factor{1.0};
+    scale_factor *= (num_frames == 0) ? 1 : num_frames;
 
     for (unsigned long i{0}; i < filenames.size(); i++)
     {
@@ -100,8 +98,17 @@ void runVO(std::string dir, int num_frames)
         matchFeatures(prev_gray,gray,features,matches);
 
         cv::Mat mask, E, R, t;
-        E = cv::findEssentialMat(features,matches,M,cv::RANSAC,0.999,1.0,mask);
-        cv::recoverPose(E, features, matches, M, R, t, mask);
+        if (matches.size() > 10)
+        {
+            E = cv::findEssentialMat(features,matches,M,cv::RANSAC,0.999,1.0,mask);
+            cv::recoverPose(E, features, matches, M, R, t, mask);
+        }
+        else
+        {
+            R = cv::Mat::eye(3,3,CV_64F);
+            t = cv::Mat::zeros(3,1,CV_64F);
+            t.at<double>(2,0) = 1.0;
+        }
 
         R_tot *= R.t();
         t_tot += -scale_factor*R_tot*t;
@@ -134,7 +141,7 @@ void runVO(std::string dir, int num_frames)
 
 int main()
 {
-    int skip_frames{2};
+    int skip_frames{0};
     std::string dir{"VO_Practice_Sequence"};
     runVO(dir, skip_frames);
 
