@@ -32,7 +32,7 @@ void matchFeatures(const cv::Mat& img1, const cv::Mat& img2,
     cv::calcOpticalFlowPyrLK(img1,img2,points1,points2,status,err);
 
     int idx{0};
-    double pix_vel, min_vel_thresh{4.0}, max_vel_thresh{50.0};
+    double pix_vel, min_vel_thresh{4.0}, max_vel_thresh{45.0};
     for (int i{0}; i < status.size(); i++)
     {
         cv::Point2f pt;

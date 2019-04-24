@@ -2,7 +2,7 @@
 #include <glob.h>
 #include <fstream>
 
-//#define SHOW
+#define SHOW
 
 void getImageFilenamesInVector(std::string dir, std::vector<std::string>& filenames)
 {
@@ -18,8 +18,8 @@ void getImageFilenamesInVector(std::string dir, std::vector<std::string>& filena
 void getFeatures(const cv::Mat& gray_img, std::vector<cv::Point2f>& points)
 {
     static int max_corners{500};
-    static double quality{0.01};
-    static double min_distance{8.0};
+    static double quality{0.009};
+    static double min_distance{9.0};
 
     cv::goodFeaturesToTrack(gray_img, points, max_corners, quality, min_distance);
 }
@@ -32,7 +32,7 @@ void matchFeatures(const cv::Mat& img1, const cv::Mat& img2,
     cv::calcOpticalFlowPyrLK(img1,img2,points1,points2,status,err);
 
     int idx{0};
-    double pix_vel, min_vel_thresh{4.0}, max_vel_thresh{50.0};
+    double pix_vel, min_vel_thresh{2.0}, max_vel_thresh{30.0};
     for (int i{0}; i < status.size(); i++)
     {
         cv::Point2f pt;
@@ -45,8 +45,9 @@ void matchFeatures(const cv::Mat& img1, const cv::Mat& img2,
         }
         else
         {
-            pix_vel = sqrt(pow(points2[i-idx].x - points1[i-idx].x,2) +
-                    pow(points2[i-idx].y - points1[i-idx].y,2));
+            double x_diff{points2[i-idx].x - points1[i-idx].x};
+            double y_diff{points2[i-idx].y - points1[i-idx].y};
+            pix_vel = sqrt(pow(x_diff,2) + pow(y_diff,2));
 
             if (pix_vel < min_vel_thresh || pix_vel > max_vel_thresh)
             {
@@ -74,12 +75,15 @@ void runVO(std::string dir, int num_frames)
     cv::Mat prev_img, img, prev_gray, gray;
     std::vector<cv::Point2f> features, matches;
 
-    cv::Mat R_tot, t_tot;
+    cv::Mat R_tot, t_tot, R, t;
     R_tot = cv::Mat::eye(3,3,CV_64F);
     t_tot = cv::Mat::zeros(3,1,CV_64F);
+    R = cv::Mat::eye(3,3,CV_64F);
+    t = cv::Mat::zeros(3,1,CV_64F);
     double scale_factor{0.8};
     scale_factor *= (num_frames == 0) ? 1 : num_frames;
 
+    int count{0};
     for (unsigned long i{0}; i < filenames.size(); i++)
     {
         prev_img = cv::imread(filenames[i]);
@@ -97,14 +101,15 @@ void runVO(std::string dir, int num_frames)
         cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
         matchFeatures(prev_gray,gray,features,matches);
 
-        cv::Mat mask, E, R, t;
-        if (matches.size() > 10)
+        cv::Mat mask, E;
+        if (matches.size() > 5)
         {
             E = cv::findEssentialMat(features,matches,M,cv::RANSAC,0.999,1.0,mask);
             cv::recoverPose(E, features, matches, M, R, t, mask);
         }
         else
         {
+            count++;
             R = cv::Mat::eye(3,3,CV_64F);
             t = cv::Mat::zeros(3,1,CV_64F);
             t.at<double>(2,0) = 1.0;
@@ -136,6 +141,7 @@ void runVO(std::string dir, int num_frames)
         cv::waitKey(1);
 #endif
     }
+    std::cout << "Number of frames with features < 5: " << count << std::endl;
     fout.close();
 #ifdef SHOW
     cv::destroyAllWindows();
@@ -144,7 +150,7 @@ void runVO(std::string dir, int num_frames)
 
 int main()
 {
-    int skip_frames{1};
+    int skip_frames{2};
 
     std::string dir{"BYU_Hallway_Sequence"};
     runVO(dir, skip_frames);
